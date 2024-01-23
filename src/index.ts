@@ -1,47 +1,86 @@
+import { availableParallelism } from "os";
+import cluster from "cluster";
+
+import { setupMaster, setupWorker } from "@socket.io/sticky";
+import { createAdapter, setupPrimary } from "@socket.io/cluster-adapter";
+
 import { createServer } from "http";
 import { Server } from "socket.io";
 
 import minimist from "minimist";
 
-const args = minimist(process.argv.slice(2), {
-    default: {
-        host: "0.0.0.0",
-        port: 8080,
-    },
-});
+if (cluster.isPrimary) {
+    console.log(`Primary ${process.pid} is running`);
 
-// check if the port is valid
-if (isNaN(args.port)) {
-    console.error("Port must be a number");
-    process.exit(1);
-}
-
-// check if the port is in range
-if (args.port < 0 || args.port > 65535) {
-    console.error("Port must be in range 0-65535");
-    process.exit(1);
-}
-
-const http_server = createServer();
-const io = new Server(http_server,
-    {
-        connectionStateRecovery: {},
+    const args = minimist(process.argv.slice(2), {
+        default: {
+            host: "0.0.0.0",
+            port: 3000,
+            threads: availableParallelism(),
+        },
+    });
+    
+    if (isNaN(args.port)) {
+        console.error("Invalid port", args.port);
+        process.exit(1);
     }
-);
+    
+    if (args.port < 0 || args.port > 65535) {
+        console.error("Port out of range", args.port);
+        process.exit(1);
+    }
+    
+    const threads = availableParallelism();
+    
+    console.log(`Available threads: ${threads}`);
+    console.log(`Requested threads: ${args.threads}`);
+    
+    if (args.threads > threads) {
+        console.error("Requested threads is greater than available threads");
+        process.exit(1);
+    }
 
-io.on("connection", (socket) => {
-    console.log("New connection", socket.id);
+    const http_server = createServer();
 
-    socket.on("disconnect", () => {
-        console.log("Disconnected", socket.id);
+    // TODO: we don't need sticky session if we disable long-polling (which we should do), but don't know how to load balance on same port without sticky session
+    setupMaster(http_server, {
+        loadBalancingMethod: "least-connection",
     });
 
-    socket.on("message", (data) => {
-        console.log("Message", socket.id, data);
-        socket.broadcast.emit("message", data);
-    });
-});
+    setupPrimary();
 
-http_server.listen(args.port, args.host, () => {
-    console.log(`Server listening on ${args.host}:${args.port}`);
-});
+    http_server.listen(args.port, args.host, () => {
+        console.log(`Listening on ${args.host}:${args.port}`);
+    });
+
+    for (let i = 0; i < threads; i++) {
+        cluster.fork();
+    }
+
+    cluster.on("exit", (worker) => {
+        console.log(`Worker ${worker.process.pid} died`);
+        cluster.fork();
+    });
+} else {
+    console.log(`Worker ${process.pid} started`);
+
+    const http_server = createServer();
+    const io = new Server(http_server);
+
+    io.adapter(createAdapter());
+    setupWorker(io);
+
+    io.on("connection", (socket) => {
+        console.log(`Socket ${socket.id} connected to worker ${process.pid}`);
+
+        socket.on("disconnect", () => {
+            console.log(`Socket ${socket.id} disconnected from worker ${process.pid}`);
+        });
+
+        // echo received message
+        socket.on("message", (message) => {
+            console.log(`Socket ${socket.id} received message: ${message}`);
+            socket.send(message);
+        });
+    });
+}
