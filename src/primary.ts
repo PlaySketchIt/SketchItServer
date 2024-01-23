@@ -8,6 +8,8 @@ import { createServer } from "http";
 
 import minimist from "minimist";
 
+import * as lobby_code from "./lobby_code";
+
 const main = () => {
     const args = minimist(process.argv.slice(2), {
         default: {
@@ -54,8 +56,24 @@ const main = () => {
         cluster.fork();
     }
 
+    cluster.on("message", (worker, message) => {
+        switch (message.type) {
+            case "allocate":
+                worker.send({
+                    type: "allocated_code",
+                    code: lobby_code.allocate(worker.process.pid),
+                });
+                break;
+            case "deallocate":
+                console.log(`Worker ${worker.process.pid} deallocated code ${message.code}`);
+                lobby_code.deallocate(message.code);
+                break;
+        }
+    });
+
     cluster.on("exit", (worker) => {
         console.log(`Worker ${worker.process.pid} died`);
+        lobby_code.deallocate_worker(worker.process.pid);
         cluster.fork();
     });
 }
