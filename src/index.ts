@@ -23,7 +23,11 @@ if (args.port < 0 || args.port > 65535) {
 }
 
 const http_server = createServer();
-const io = new Server(http_server);
+const io = new Server(http_server,
+    {
+        connectionStateRecovery: {},
+    }
+);
 
 io.on("connection", (socket) => {
     console.log("New connection", socket.id);
