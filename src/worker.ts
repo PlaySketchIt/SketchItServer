@@ -3,6 +3,7 @@ import { createAdapter } from "@socket.io/cluster-adapter";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { validate_auth_header } from "./auth";
 
 const create_lobby_code = async () => {
     return new Promise<string>((resolve, reject) => {
@@ -69,6 +70,12 @@ const main = async () => {
     // TODO: REST?
     // TODO: rate limit. may be best at primary level
     http_server.on("request", async (request, response) => {
+        if (!validate_auth_header(request.headers.authorization)) {
+            response.writeHead(401);
+            response.end("Unauthorized");
+            return;
+        }
+
         const url = new URL(request.url, "http://example.com");
 
         switch (url.pathname) {
@@ -84,7 +91,7 @@ const main = async () => {
 
                 if (code === undefined) {
                     response.writeHead(400);
-                    response.end();
+                    response.end("Missing code");
                     break;
                 }
 
@@ -94,12 +101,12 @@ const main = async () => {
                 });
 
                 response.writeHead(200);
-                response.end();
+                response.end("OK");
                 break;
             }
             default:
                 response.writeHead(404);
-                response.end();
+                response.end("Not found");
                 break;
         }
     });

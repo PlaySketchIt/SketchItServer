@@ -11,6 +11,7 @@ import minimist from "minimist";
 import * as lobby_code from "./lobby_code";
 
 const main = () => {
+    // TODO: move to .env
     const args = minimist(process.argv.slice(2), {
         default: {
             host: "0.0.0.0",
@@ -26,6 +27,16 @@ const main = () => {
 
     if (args.port < 0 || args.port > 65535) {
         console.error("Port out of range", args.port);
+        process.exit(1);
+    }
+
+    if (process.env.KEY === undefined || process.env.KEY === "") {
+        console.error("KEY environment variable not set");
+        process.exit(1);
+    }
+
+    if (process.env.KEY.length < 32) {
+        console.error("KEY environment variable too short. Must be at least 32 characters.");
         process.exit(1);
     }
 

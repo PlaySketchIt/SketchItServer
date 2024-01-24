@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import cluster from "cluster";
 
 import run_primary from "./primary";
