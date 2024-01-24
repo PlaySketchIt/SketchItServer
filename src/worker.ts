@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { validate_auth_header } from "./auth";
 
+// TODO: united method for IPC
 const create_lobby_code = async () => {
     return new Promise<string>((resolve, reject) => {
         let received = false;
@@ -171,3 +172,5 @@ const main = async () => {
 }
 
 export default main;
+
+// TODO: split into separate files
