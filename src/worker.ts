@@ -8,10 +8,11 @@ import { validate_auth_header } from "./auth";
 const create_lobby_code = async () => {
     return new Promise<string>((resolve, reject) => {
         let received = false;
+        const timestamp = Date.now();
 
         // TODO: type message
         const callback = (message) => {
-            if (message.type === "allocated_code") {
+            if (message.type === "allocated_code" && message.timestamp === timestamp) {
                 console.log(`Worker ${process.pid} allocated code ${message.code}`);
 
                 received = true;
@@ -29,6 +30,7 @@ const create_lobby_code = async () => {
 
         // request code from primary
         process.send({
+            timestamp,
             type: "allocate",
         });
 
@@ -43,6 +45,45 @@ const create_lobby_code = async () => {
     });
 };
 
+const check_code_exists = async (code: string) => {
+    return new Promise<boolean>((resolve, reject) => {
+        let received = false;
+        const timestamp = Date.now();
+
+        // TODO: type message
+        const callback = (message) => {
+            if (message.type === "code_exists" && message.timestamp === timestamp) {
+                received = true;
+
+                // remove listener
+                process.removeListener("message", callback);
+
+                // resolve promise
+                resolve(message.exists);
+            }
+        };
+
+        // listen for allocated code message from primary
+        process.on("message", callback);
+
+        // request code from primary
+        process.send({
+            timestamp,
+            type: "check_code_exists",
+            code,
+        });
+
+        // reject promise if no response received after 3 seconds
+        setTimeout(() => {
+            if (received) {
+                return;
+            }
+
+            reject("No response received");
+        }, 3000);
+    });
+};
+
 const main = async () => {
     const http_server = createServer();
     const io = new Server(http_server);
@@ -50,8 +91,25 @@ const main = async () => {
     io.adapter(createAdapter());
     setupWorker(io);
 
-    io.on("connection", (socket) => {
-        console.log(`Socket ${socket.id} connected to worker ${process.pid}`);
+    // middleware to validate code
+    io.use(async (socket, next) => {
+        const code = socket.handshake.query.code as string | undefined;
+
+        if (!code) {
+            next(new Error("Missing code"));
+            return;
+        }
+
+        if (!(await check_code_exists(code))) {
+            next(new Error("Invalid code"));
+            return;
+        }
+
+        next();
+    });
+
+    io.on("connection", async (socket) => {
+        console.log(`Socket ${socket.id} connected to worker ${process.pid} with code ${socket.handshake.query.code}`);
 
         socket.on("disconnect", () => {
             console.log(`Socket ${socket.id} disconnected from worker ${process.pid}`);

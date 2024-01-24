@@ -71,6 +71,7 @@ const main = () => {
         switch (message.type) {
             case "allocate":
                 worker.send({
+                    timestamp: message.timestamp,
                     type: "allocated_code",
                     code: lobby_code.allocate(worker.process.pid),
                 });
@@ -78,6 +79,13 @@ const main = () => {
             case "deallocate":
                 console.log(`Worker ${worker.process.pid} deallocated code ${message.code}`);
                 lobby_code.deallocate(message.code);
+                break;
+            case "check_code_exists":
+                worker.send({
+                    timestamp: message.timestamp,
+                    type: "code_exists",
+                    exists: lobby_code.exists(message.code),
+                });
                 break;
         }
     });

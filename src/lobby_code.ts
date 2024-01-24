@@ -29,6 +29,10 @@ export const get_owner = (code: string) => {
     return codes[code];
 };
 
+export const exists = (code: string) => {
+    return code in codes;
+};
+
 export const deallocate_worker = (worker_id: number) => {
     for (const code in codes) {
         if (codes[code] === worker_id) {
