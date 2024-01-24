@@ -1,7 +1,15 @@
 import { timingSafeEqual } from "crypto";
 
 const tse_string = (a: string, b: string) => {
-    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    let can_succeed = true;
+
+    if (a.length !== b.length) {
+        b = a;
+        can_succeed = false;
+    }
+
+    const result = timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    return result && can_succeed;
 };
 
 export const validate_auth_header = (header: string | undefined) => {
