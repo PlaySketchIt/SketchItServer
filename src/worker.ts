@@ -106,6 +106,8 @@ const main = async () => {
             return;
         }
 
+        // join room for code
+        socket.join(code);
         next();
     });
 
