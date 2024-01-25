@@ -5,6 +5,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { validate_auth_header } from "./auth";
 
+const MAX_USERNAME_LENGTH = 32;
+
 // TODO: united method for IPC
 const create_lobby_code = async () => {
     return new Promise<string>((resolve, reject) => {
@@ -111,8 +113,40 @@ const main = async () => {
         next();
     });
 
+    // middleware to validate username
+    io.use(async (socket, next) => {
+        const username = socket.handshake.query.username as string | undefined;
+
+        if (!username) {
+            next(new Error("Missing username"));
+            return;
+        }
+
+        if (username.length > MAX_USERNAME_LENGTH) {
+            next(new Error("Username too long"));
+            return;
+        }
+
+        next();
+    });
+
+    // middleware to check presence of reconnection key
+    // TODO: implement. client will generate a uuid and store it in local storage, then send it as a query parameter when connecting
+    // to allow reconnection and unique identification of the client (username may be non-unique or changed)
+    // its probably a good idea to never tell the clients other clients' reconnection keys so they can't impersonate them
+    //io.use(async (socket, next) => {
+    //    const reconnection_key = socket.handshake.query.reconnection_key as string | undefined;
+    //
+    //    if (!reconnection_key) {
+    //        next(new Error("Missing reconnection key"));
+    //        return;
+    //    }
+    //
+    //    next();
+    //});
+
     io.on("connection", async (socket) => {
-        console.log(`Socket ${socket.id} connected to worker ${process.pid} with code ${socket.handshake.query.code}`);
+        console.log(`Socket ${socket.id} connected to worker ${process.pid} with code ${socket.handshake.query.code}, username ${socket.handshake.query.username}`);
 
         socket.on("disconnect", () => {
             console.log(`Socket ${socket.id} disconnected from worker ${process.pid}`);
