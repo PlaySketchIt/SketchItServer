@@ -5,7 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { validate_auth_header } from "./auth";
 
-const MAX_USERNAME_LENGTH = 32;
+const MAX_USERNAME_LENGTH = 16;
 
 // TODO: united method for IPC
 const create_lobby_code = async () => {
