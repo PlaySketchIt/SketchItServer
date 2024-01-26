@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node ./dist/index.js",
     "build": "tsc",
-    "dev": "concurrently \"tsc -w\" \"nodemon ./dist/index.js --host localhost --port 3002\""
+    "dev": "concurrently \"tsc -w\" \"nodemon ./dist/index.js --host localhost --port 3002\"",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
   },
   "repository": {
     "type": "git",

@@ -89,27 +89,39 @@ const check_code_exists = async (code: string) => {
 
 const main = async () => {
     const http_server = createServer();
-    const io = new Server(http_server);
+    const io = new Server(http_server, {
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"],
+        },
+    });
+    // TODO: setup cors properly!!!!
 
     io.adapter(createAdapter());
     setupWorker(io);
 
     // middleware to validate code
     io.use(async (socket, next) => {
+        console.log(`Socket ${socket.id} initialising connection to worker ${process.pid}`);
+
         const code = socket.handshake.query.code as string | undefined;
 
         if (!code) {
+            socket.emit("error", "Missing code");
+            socket.disconnect();
+
             next(new Error("Missing code"));
             return;
         }
 
         if (!(await check_code_exists(code))) {
-            next(new Error("Invalid code"));
+            socket.emit("error", "Lobby does not exist");
+            socket.disconnect();
+
+            next(new Error("Lobby does not exist"));
             return;
         }
 
-        // join room for code
-        socket.join(code);
         next();
     });
 
@@ -118,11 +130,17 @@ const main = async () => {
         const username = socket.handshake.query.username as string | undefined;
 
         if (!username) {
+            socket.emit("error", "Missing username");
+            socket.disconnect();
+
             next(new Error("Missing username"));
             return;
         }
 
         if (username.length > MAX_USERNAME_LENGTH) {
+            socket.emit("error", "Username too long");
+            socket.disconnect();
+
             next(new Error("Username too long"));
             return;
         }
@@ -145,8 +163,11 @@ const main = async () => {
     //    next();
     //});
 
-    io.on("connection", async (socket) => {
-        console.log(`Socket ${socket.id} connected to worker ${process.pid} with code ${socket.handshake.query.code}, username ${socket.handshake.query.username}`);
+    io.use((socket, next) => {
+        console.log(`Socket ${socket.id} fully connected to worker ${process.pid} with code ${socket.handshake.query.code}, username ${socket.handshake.query.username}`);
+
+        // join room for code
+        socket.join(socket.handshake.query.code as string);
 
         socket.on("disconnect", () => {
             console.log(`Socket ${socket.id} disconnected from worker ${process.pid}`);
@@ -165,15 +186,21 @@ const main = async () => {
     // TODO: REST?
     // TODO: rate limit. may be best at primary level
     http_server.on("request", async (request, response) => {
+        const url = new URL(request.url, "http://example.com");
+        const endpoint = url.pathname.replace(/\/$/, "");
+
+        if (endpoint === "/socket.io") {
+            // ignore socket.io requests
+            return;
+        }
+
         if (!validate_auth_header(request.headers.authorization)) {
             response.writeHead(401);
             response.end("Unauthorized");
             return;
         }
 
-        const url = new URL(request.url, "http://example.com");
-
-        switch (url.pathname) {
+        switch (endpoint) {
             case "/create": {
                 const code = await create_lobby_code();
 
@@ -210,3 +237,6 @@ const main = async () => {
 export default main;
 
 // TODO: split into separate files
+// TODO: unite error message sending with next(Error)
+// TODO: send computer readable error codes to client so i18n can be done client side
+// TODO: disconnect clients when lobby is destroyed
