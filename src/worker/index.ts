@@ -102,23 +102,19 @@ const main = async () => {
 
     // middleware to validate code
     io.use(async (socket, next) => {
-        console.log(`Socket ${socket.id} initialising connection to worker ${process.pid}`);
+        console.log(`Socket ${socket.id} initialising connection to worker ${process.pid} with IP ${socket.handshake.address}`);
 
         const code = socket.handshake.query.code as string | undefined;
 
         if (!code) {
-            socket.emit("error", "Missing code");
-            socket.disconnect();
-
-            next(new Error("Missing code"));
+            console.log(`Socket ${socket.id} disconnected from worker ${process.pid} due to missing code`);
+            next(new Error("user:missing code"));
             return;
         }
 
         if (!(await check_code_exists(code))) {
-            socket.emit("error", "Lobby does not exist");
-            socket.disconnect();
-
-            next(new Error("Lobby does not exist"));
+            console.log(`Socket ${socket.id} disconnected from worker ${process.pid} due to non-existent code`);
+            next(new Error("user:invalid code"));
             return;
         }
 
@@ -130,18 +126,14 @@ const main = async () => {
         const username = socket.handshake.query.username as string | undefined;
 
         if (!username) {
-            socket.emit("error", "Missing username");
-            socket.disconnect();
-
-            next(new Error("Missing username"));
+            console.log(`Socket ${socket.id} disconnected from worker ${process.pid} due to missing username`);
+            next(new Error("user:missing username"));
             return;
         }
 
         if (username.length > MAX_USERNAME_LENGTH) {
-            socket.emit("error", "Username too long");
-            socket.disconnect();
-
-            next(new Error("Username too long"));
+            console.log(`Socket ${socket.id} disconnected from worker ${process.pid} due to too long username`);
+            next(new Error("user:username too long"));
             return;
         }
 
@@ -163,7 +155,7 @@ const main = async () => {
     //    next();
     //});
 
-    io.use((socket, next) => {
+    io.use((socket, _next) => {
         console.log(`Socket ${socket.id} fully connected to worker ${process.pid} with code ${socket.handshake.query.code}, username ${socket.handshake.query.username}`);
 
         // join room for code
@@ -232,11 +224,9 @@ const main = async () => {
                 break;
         }
     });
-}
+};
 
 export default main;
 
 // TODO: split into separate files
-// TODO: unite error message sending with next(Error)
-// TODO: send computer readable error codes to client so i18n can be done client side
 // TODO: disconnect clients when lobby is destroyed
